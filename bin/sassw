@@ -1,0 +1,3 @@
+#!/bin/bash
+echo 'Watching main styles scss file'
+sass --watch css/scss/styles.scss:css/styles.css
