@@ -1,4 +1,6 @@
 consecution
 ===========
 
-Generative audio sequencing app built with gibber and P5
+Generative audio sequencing app built with gibber and P5.js based on data from uncontext.
+
+[More Info](http://lucastswick.com/generative-audio-with-gibber-and-p5-js/)
