@@ -426,7 +426,8 @@ $(function() {
       return function(ev) {
         var consequent, instrumentCount;
         ev.preventDefault();
-        $("[data-consequent-instrument-count]").hide();
+        $(".experiment").empty();
+        $(".instrument-panel").remove();
         instrumentCount = parseInt($(ev.target).data("consequent-instrument-count"));
         consequent = new p5(Consequent);
         return consequent.buildInstruments(instrumentCount);
