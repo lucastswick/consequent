@@ -1,8 +1,8 @@
-# http://codepen.io/ThisIsJohnBrown/pen/AqzuC 
+# blog post about the project http://lucastswick.com/generative-audio-with-gibber-and-p5-js/
+# gibber: http://charlie-roberts.com/gibber/p5-gibber/
+# uncontext data from http://codepen.io/ThisIsJohnBrown/pen/AqzuC 
 
-SoundApp = (sketch) ->
-
-
+Consequent = (sketch) ->
 
   sketch.mute = false
   @dataWatcher = null
@@ -11,17 +11,11 @@ SoundApp = (sketch) ->
   @baseBPM = 120
   @lastBeat = 4
   @barIndex = 1
-  @xOffset1 = 0
-  @xOffset2 = 0
-  @xOffset3 = 0
-  @xOffset4 = 0
-  @xOffsets = []
-  @hue1 = 20
-  @hue2 = 50
-  @hue3 = 70
-  @hue4 = 80
-  @hues = []
+  @xOffsets = [0, 0, 0, 0]
+  @hues = [20, 50, 70, 194/255]
   @fillValue = 20
+  @visualizer = true
+  @wildSolo = false
 
   # data from https://gist.github.com/partlyhuman/593d122070cec618e1ff
   Samples = {}
@@ -64,39 +58,59 @@ SoundApp = (sketch) ->
 
     if $(".experiment")
       $(".experiment").prepend @canvas
-      $(@canvas).css "width", "100%"
+      # $(@canvas).css "width", "100%"
       # $(@canvas).css "height", "400px"
 
-    sketch.colorMode(sketch.HSB, 100)
-    sketch.background(0)
+    sketch.colorMode sketch.HSB, 100
+    sketch.background 0
 
     window.gibber = @gibber
     # console.log @gibber
     @gibber.Clock.bpm = 80
-
-
-
     @gibber.scale.mode.seq(['Minor'], [1])
 
-
-    if sketch.isMobile()
-      # sketch.makeBassTrack()
-      sketch.makeWildTrack()
-      @wild.amp = .5
-    else
-      sketch.makeBassTrack()
-      sketch.makeSyn1()
-      sketch.makeWildTrack()
-      sketch.makeSyn2()
-
-    @xOffsets = [@xOffset1, @xOffset2, @xOffset3, @xOffset4]
-    @hues = [@hue1, @hue2, @hue3, @hue4]
-
-    
+    sketch.noLoop()
 
     window.addEventListener("resize", sketch.onResize)
 
+
     return
+
+  sketch.buildInstruments = (instrumentCount) =>
+
+    @instrumentCount = instrumentCount
+
+    if @instrumentCount >= 1
+      sketch.makeWildTrack()
+      @wild.amp = .5
+
+    if @instrumentCount >= 2
+      sketch.makeBassTrack()
+
+    if @instrumentCount >= 3
+      sketch.makeSyn1()
+
+    if @instrumentCount >= 4
+      sketch.makeSyn2()
+
+
+    if sketch.isMobile()
+      @visualizer = false
+
+    
+    # var so wild instrument does not modulate volume
+    if @instrumentCount < 3
+      @wildSolo = true
+
+    # assume more CPU power on higher instrument counts, but turned off to discourage the occasional 'clickiness'
+    # TODO - remove bad assumption, make effects triggerable separately
+    @effects = false
+    # @effects = @instrumentCount >= 4
+
+    
+    sketch.loop()
+
+
 
   sketch.makeWildTrack = =>
     @wild = @gibber.Synths.Mono('easyfx').note.seq( @gibber.Utilities.Rndi(0,4), [1/4,1/8,1/2,1,2].rnd( 1/8,4 ) )
@@ -117,9 +131,9 @@ SoundApp = (sketch) ->
     @bass = @gibber.Synths.Mono bassObj
     @bass.note.seq( [0], [1/16] )
 
-    if !sketch.isMobile()
+    if @effects
     
-      bassCrushObj = {bitDepth: 4, sampleRate: .2}
+      bassCrushObj = {bitDepth: 8, sampleRate: .2}
       @bassCrush = @gibber.FX.Crush bassCrushObj
       @bass.fx.add @bassCrush
 
@@ -138,10 +152,10 @@ SoundApp = (sketch) ->
     @synPad = @gibber.Synths.Mono synPadObj
     @synPad.note.seq( [0,0,-1,0,2,4,4,6].rnd(), [1/16] )
 
-
-    synPadDelayObj = {feedback:.75, wet:.5, dry:1}
-    @synPadDelay = @gibber.FX.Delay synPadDelayObj
-    @synPad.fx.add @synPadDelay
+    if @effects
+      synPadDelayObj = {feedback:.65, wet:.5, dry:1}
+      @synPadDelay = @gibber.FX.Delay synPadDelayObj
+      @synPad.fx.add @synPadDelay
 
     @synPadFollow = @gibber.Analysis.Follow(@synPad)
 
@@ -170,7 +184,15 @@ SoundApp = (sketch) ->
     @middleX = @windowWidth >> 1
     @middleY = @windowHeight >> 1
 
-    sketch.resizeCanvas(@windowWidth, @windowHeight);
+    # resizeCanvas is deprecated.
+    # sketch.resizeCanvas(@windowWidth, @windowHeight);
+    sketch.createCanvas @windowWidth, @windowHeight
+
+    if $(".experiment")
+      $(".experiment").prepend @canvas
+    
+    sketch.colorMode sketch.HSB, 100
+    sketch.background 0
 
 
   sketch.onDataChange = (data) =>
@@ -187,22 +209,18 @@ SoundApp = (sketch) ->
       bassAmp = 1 - @data.a[1]
       TweenLite.to(@bass, 2, {resonance: bassResonance, amp: bassAmp})
 
-    if !@synPad
+    if @synPad
 
       synPadPan = @data.b[0] * 2 - 1
       synPadPulseWidth = @data.b[1]
       TweenLite.to(@synPad, 1, {pan: synPadPan, pulseWidth: synPadPulseWidth})
 
-    fv = 12 + @data.a[0] * 35
+    fv = 10 + @data.e * 15
     TweenLite.to(@, .3, {fillValue: fv})
     
     
 
   sketch.draw = =>
-
-    # boxBlurImage( @canvas, @canvas, 10, 0, 1 );
-    
-
 
     if @lastBeat is 4 and @gibber.Clock.currentBeat is 1
       sketch.onBarChange()
@@ -211,25 +229,29 @@ SoundApp = (sketch) ->
 
     @lastBeat = @gibber.Clock.currentBeat
 
-    if sketch.isMobile()
+    if !@visualizer
       return
 
     sketch.noStroke();
     sketch.fill(0, 0, 0, @fillValue);
     sketch.rect(0, 0, @windowWidth, @windowHeight);
 
-    @xOffset1 += @data.d
-    @xOffset2 += @data.e
-    @xOffset3 += @data.f
-    @xOffset4 += @data.d
-
-    @xOffsets = [@xOffset1, @xOffset2, @xOffset3, @xOffset4]
-
 
     for track, i in @tracks
-      @hues[i] += @tracks[i].follow.getValue()
+
+      switch i
+        when 0 then @xOffsets[i] += @data.d
+        when 1 then @xOffsets[i] += @data.e
+        when 2 then @xOffsets[i] += @data.f
+        when 3 then @xOffsets[i] += @data.b[1]
+
+      @xOffsets[i] += @tracks[i].instrument.frequency / 10
+
+
+      @hues[i] += @tracks[i].follow.getValue() / 10
       if @hues[i] > 100
         @hues[i] %= 100
+
 
     sketch.stroke(0, 0, 100, 20)
 
@@ -240,61 +262,26 @@ SoundApp = (sketch) ->
       v = Math.max(0, track.follow.getValue())
       offsetX = @xOffsets[i]
       hue = @hues[i]
-      sketch.renderSynth(v, offsetX, hue + offsetX, track.instrument.frequency)
+      sketch.renderSynth(v, offsetX, hue, track.instrument.frequency)
 
 
-
-    # synPadValue = Math.max(0, @synPadFollow.getValue())
-    # bassValue = Math.max(0, @bassFollow.getValue())
-    # wildValue = Math.max(0, @wildFollow.getValue())
-    # synPad2Value = Math.max(0, @synPad2Follow.getValue())
-
-    # sketch.renderSynth(synPadValue, @xOffset1, @hue1 + @xOffset1, @synPad.frequency)
-    # sketch.renderSynth(bassValue, @xOffset2, @hue2 + @xOffset2, @bass.frequency)
-    # sketch.renderSynth(wildValue, @xOffset3, @hue3 + @xOffset3, @wild.frequency)
-    # sketch.renderSynth(synPad2Value, @xOffset4, @hue4 + @xOffset4, @synPad2.frequency)
-
-
-    
-
-    # bassValue = Math.max(0, @bassFollow.getValue())
-    # sketch.fill(@xOffset2, 100, 100, 50)
-    # sketch.ellipse(@middleX + bassValue * 5 * Math.cos(@xOffset2) * 180 / Math.PI, @middleY + bassValue * 5 * Math.sin(@xOffset2) * 180 / Math.PI, bassValue * @windowWidth * 2, bassValue * @windowWidth * 2)
-
-    # wildValue = Math.max(0, @wildFollow.getValue())
-    # sketch.fill(@xOffset3, 100, 100, 50)
-    # sketch.ellipse(@middleX + wildValue * 5 * Math.cos(@xOffset3) * 180 / Math.PI, @middleY + wildValue * 5 * Math.sin(@xOffset3) * 180 / Math.PI, wildValue * @windowWidth * 2, wildValue * @windowWidth * 2)
-
-    
-
-    # synPadValue = @synPadFollow.getValue()
-    # sketch.fill(255, 0, 0, synPadValue * 255)
-    # sketch.ellipse(@middleX,@middleY, synPadValue * @windowWidth, synPadValue * @windowWidth)
-
-    # bassValue = @bassFollow.getValue()
-    # sketch.fill(0, 255, 0, bassValue * 255)
-    # sketch.ellipse(@middleX,@middleY, bassValue * @windowWidth, bassValue * @windowWidth)
-
-
-    # wildValue = @wildFollow.getValue()
-    # sketch.fill(0, 0, 255, wildValue * 255)
-    # sketch.ellipse(@middleX,@middleY, wildValue * @windowWidth, wildValue * @windowWidth)
 
   sketch.renderSynth = (amp, offset, hue, freq) =>
     
     sketch.stroke(hue, 100, 50, 255)
-    lineCount = 32
+    lineCount = 4 + ~~(@data.d * 28)
     lineLength = amp * freq
-    radius = amp * windowWidth
+    radius = ~~(amp * windowWidth)
     varianceFromCenter = amp * 5
 
 
     for i in [0..lineCount - 1]
       theta = (i * 360 / lineCount) + offset
-      x1 = @middleX + (radius + 5 + lineLength) * Math.cos(theta / 180 * Math.PI)
-      y1 = @middleY + (radius + 5 + lineLength) * Math.sin(theta / 180 * Math.PI)
-      x2 = @middleX + (radius + 5) * Math.cos(theta / 180 * Math.PI)
-      y2 = @middleY + (radius + 5) * Math.sin(theta / 180 * Math.PI)
+      tDegrees = theta / 180 * Math.PI
+      x1 = @middleX + (radius + 5 + lineLength) * Math.cos(tDegrees)
+      y1 = @middleY + (radius + 5 + lineLength) * Math.sin(tDegrees)
+      x2 = @middleX + (radius + 5) * Math.cos(tDegrees)
+      y2 = @middleY + (radius + 5) * Math.sin(tDegrees)
       sketch.line(x1, y1, x2, y2)
 
     # ex = @middleX + amp * varianceFromCenter * Math.cos(offset) * 180 / Math.PI
@@ -312,25 +299,19 @@ SoundApp = (sketch) ->
 
     if @synPad
       sketch.newMelody()
-
-
-    # sketch.newBass()
+      if @data.f > .8
+        sketch.drop @synPad
 
     if @bass
       if @data.e > .8
         sketch.drop @bass
 
-    if @synPad
-      if @data.f > .8
-        sketch.drop @synPad
-
-   
 
   sketch.onPhraseChange = =>
 
     sketch.newScale()
 
-    if !sketch.isMobile()
+    if !@wildSolo
       wildAmp = 0
       if (@data.f > .6)
         wildAmp = .5
@@ -374,7 +355,7 @@ SoundApp = (sketch) ->
     @gibber.scale.root.seq( phraseNotes[phraseNoteIndex], phraseTimings[phraseTimingIndex])
 
   sketch.drop = (inst) =>
-    TweenLite.to(inst, 5, {frequency: 50})
+    TweenLite.to(inst, 5, {frequency: 200})
 
 
   sketch.getAvailableWidth = =>
@@ -386,8 +367,8 @@ SoundApp = (sketch) ->
 
 
   sketch.getAvailableHeight = =>
-    if sketch.isMobile()
-      return 50
+    if !@visualizer
+      return 0
     return Math.min(600, window.innerHeight)
 
   
@@ -434,6 +415,8 @@ SoundApp = (sketch) ->
       sketch.loop()
       sketch.mute = false
 
+
+
   sketch.isMobile = =>
     if ( /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) )
       console.log 'is mobile'
@@ -447,12 +430,27 @@ SoundApp = (sketch) ->
 
 
 $ ->
-  soundApp = new p5(SoundApp)
+  # consequent = new p5(Consequent)
 
-  $(".pause").on "click tap", (ev) ->
+  buttons = $("[data-consequent-instrument-count]")
+  for button in buttons
+    button = $(button)
+    button.on "click touch", (ev) =>
+      ev.preventDefault()
+
+      # hide buttons
+      $("[data-consequent-instrument-count]").hide()
+
+      instrumentCount = parseInt($(ev.target).data("consequent-instrument-count"))
+      consequent = new p5(Consequent)
+      consequent.buildInstruments instrumentCount
+
+
+
+  $(".pause").on "click touch", (ev) ->
     ev.preventDefault()
-    soundApp.setMute !soundApp.mute
-    if soundApp.mute
+    consequent.setMute !consequent.mute
+    if consequent.mute
       $(@).html("Click to Play")
     else
       $(@).html("Click to Pause")
