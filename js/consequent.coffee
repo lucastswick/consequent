@@ -14,7 +14,7 @@ Consequent = (sketch) ->
   @xOffsets = [0, 0, 0, 0]
   @hues = [20, 50, 70, 194/255]
   @fillValue = 20
-  @visualizer = true
+  @visualizer = false
   @wildSolo = false
 
   # data from https://gist.github.com/partlyhuman/593d122070cec618e1ff
@@ -44,6 +44,9 @@ Consequent = (sketch) ->
 
 
   sketch.setup = =>
+
+    if !sketch.isMobile()
+      @visualizer = true
 
 
     @windowWidth = sketch.getAvailableWidth()
@@ -88,14 +91,11 @@ Consequent = (sketch) ->
       sketch.makeBassTrack()
 
     if @instrumentCount >= 3
-      sketch.makeSyn1()
-
-    if @instrumentCount >= 4
       sketch.makeSyn2()
 
+    if @instrumentCount >= 4
+      sketch.makeSyn1()
 
-    if sketch.isMobile()
-      @visualizer = false
 
     
     # var so wild instrument does not modulate volume
@@ -124,8 +124,8 @@ Consequent = (sketch) ->
   sketch.makeBassTrack = =>
     bassObj = @gibber.Presets.Mono.dark
     bassObj.amp = .4
-    bassObj.attack = .01
-    bassObj.decay = 4
+    bassObj.attack = .05
+    bassObj.decay = .4
     bassObj.octave = -1
     bassObj.resonance = 2
     @bass = @gibber.Synths.Mono bassObj
@@ -145,10 +145,10 @@ Consequent = (sketch) ->
   sketch.makeSyn1 = =>
 
     synPadObj = @gibber.Presets.Mono.dark2
-    synPadObj.octave = 0
-    synPadObj.amp = .8
+    synPadObj.octave = -1
+    synPadObj.amp = .4
     synPadObj.attack = .05
-    synPadObj.decay = 1
+    synPadObj.decay = .5
     @synPad = @gibber.Synths.Mono synPadObj
     @synPad.note.seq( [0,0,-1,0,2,4,4,6].rnd(), [1/16] )
 
@@ -215,7 +215,10 @@ Consequent = (sketch) ->
       synPadPulseWidth = @data.b[1]
       TweenLite.to(@synPad, 1, {pan: synPadPan, pulseWidth: synPadPulseWidth})
 
-    fv = 10 + @data.e * 15
+    if @data.c
+      fv = 30
+    else
+      fv = 10
     TweenLite.to(@, .3, {fillValue: fv})
     
     
@@ -273,9 +276,14 @@ Consequent = (sketch) ->
     lineLength = amp * freq
     radius = ~~(amp * windowWidth)
     varianceFromCenter = amp * 5
+    ellipse1Size = (offset >> 7) * (1 + @data.e)
+    ellipse2Size = (offset >> 12) * @data.a[1]
 
 
     for i in [0..lineCount - 1]
+
+      sketch.stroke(hue, 100, 50, 255)
+      sketch.noFill()
       theta = (i * 360 / lineCount) + offset
       tDegrees = theta / 180 * Math.PI
       x1 = @middleX + (radius + 5 + lineLength) * Math.cos(tDegrees)
@@ -283,6 +291,12 @@ Consequent = (sketch) ->
       x2 = @middleX + (radius + 5) * Math.cos(tDegrees)
       y2 = @middleY + (radius + 5) * Math.sin(tDegrees)
       sketch.line(x1, y1, x2, y2)
+      
+      if @data.c
+        sketch.noStroke()
+        sketch.fill(hue, 100, 50, 6)
+        sketch.ellipse(x1, y1, ellipse1Size, ellipse1Size)
+        sketch.ellipse(x2, y2, ellipse2Size , ellipse2Size)
 
     # ex = @middleX + amp * varianceFromCenter * Math.cos(offset) * 180 / Math.PI
     # ey = @middleY + amp * varianceFromCenter * Math.sin(offset) * 180 / Math.PI
@@ -397,6 +411,21 @@ Consequent = (sketch) ->
       # g key for gibber
       when 71
         console.log @gibber
+
+      # 1-4 for individual tracks
+      when 49
+        console.log @tracks[0]
+
+      when 50
+        console.log @tracks[1]
+
+      when 51
+        console.log @tracks[2]
+
+      when 52
+        console.log @tracks[3]
+
+
 
       # # b key for bomb drop
       # when 66
